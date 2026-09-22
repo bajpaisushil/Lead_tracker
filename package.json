@@ -1,0 +1,29 @@
+{
+  "name": "lead-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lead Tracker - Express/MongoDB API with a Next.js dashboard",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm --prefix server run dev",
+    "dev:web": "npm --prefix web run dev",
+    "build": "npm run build:api && npm run build:web",
+    "build:api": "npm --prefix server run build",
+    "build:web": "npm --prefix web run build",
+    "test": "npm run test:api && npm run test:web",
+    "test:api": "npm --prefix server test",
+    "test:web": "npm --prefix web test",
+    "lint": "npm --prefix server run lint && npm --prefix web run lint",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix web run typecheck",
+    "install:all": "npm install && npm --prefix server install && npm --prefix web install",
+    "db:up": "docker compose up -d mongo",
+    "db:down": "docker compose down",
+    "seed": "npm --prefix server run seed"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
