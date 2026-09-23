@@ -1,198 +1,220 @@
-# AGENT.md
+AGENT.md
 
-How this project was built, which parts were AI-assisted, which were not, and
-the decisions that shaped it.
+How this project was built, which parts were AI-assisted, which were not, and the decisions that shaped it.
 
-## Tools
+Tools
 
-| Tool | Used for |
-|---|---|
-| Claude (Anthropic), via Claude Code in VS Code | Scaffolding, boilerplate, first drafts of components and tests, rubber-ducking trade-offs |
-| GitHub Copilot (inline completions) | Line-level completion while editing |
-| TypeScript compiler + ESLint | The actual arbiter of whether generated code was correct |
-| Vitest | Same, for behaviour |
+Tool| Used for
+Claude (Anthropic), via Claude Code in VS Code| Scaffolding, boilerplate, first drafts of components and tests, code review and checking edge cases
+GitHub Copilot (inline completions)| Line-level completion while editing
+TypeScript compiler + ESLint| The actual arbiter of whether generated code was correct
+Vitest| Same, for behaviour
 
-I treated the model as a fast pair, not an author. Everything it produced went
-through `tsc --noEmit`, `eslint`, the test suite, and a read-through before it
-was committed. Several things it produced did not survive that (see
-[Where the AI was wrong](#where-the-ai-was-wrong)).
+I treated the AI tools as a development assistant, not as the author of the project. I made the main architecture and behaviour decisions myself. Everything generated or suggested by AI was reviewed before being used and was checked with "tsc --noEmit", ESLint, tests, and manual testing.
 
-## How I worked
+How I worked
 
-I planned the shape of the thing first — layering, the status state machine,
-the repository seam, the error contract — and then used AI to fill in the
-volume. The order was deliberate: backend contract → tests → frontend against
-a working API → docs and deployment last.
+I planned the main shape of the application first — architecture, status flow, repository boundary, validation and error handling. After that I used AI mainly for implementation, tests, reviewing edge cases and finding improvements.
 
-A rough split of where the time went:
+The order was deliberate:
 
-| Phase | Approach |
-|---|---|
-| Architecture, module boundaries, data model | Mine. Decided before prompting. |
-| Express/TS scaffolding, config, tsconfig, ESLint setup | AI-generated, reviewed and trimmed |
-| Mongoose schema + indexes | AI drafted, I chose the indexes and the lowercase-email approach |
-| Repository interface + Mongo/in-memory implementations | My design, AI wrote the in-memory one from the interface |
-| Service layer and domain rules | Mine. This is where the actual behaviour lives. |
-| Zod schemas | AI-generated from the field rules I specified |
-| Controllers, routes, middleware | AI-generated, I moved validation from middleware into the controllers |
-| Test suite | AI wrote the bulk from a list of cases I specified; I added the edge cases |
-| React components and Tailwind theming | AI-generated; the palette, layout and interaction model are mine |
-| TanStack Query hooks, optimistic updates | AI-generated from my description of the rollback behaviour |
-| README, this file | Mine, written after the fact from the actual commits |
-| Deployment | Mine. Hosting choice, env wiring, serverless adaptation. |
+backend contract → tests → frontend against a working API → final review → documentation and deployment
 
-## What was AI-generated vs hand-written
+A rough split of where the work went:
 
-**Mostly AI, then reviewed:**
+Phase| Approach
+Architecture, module boundaries, data model| Mine. Decided before prompting
+Express/TypeScript scaffolding, config, tsconfig, ESLint setup| AI-generated, reviewed and trimmed
+Mongoose schema + indexes| AI drafted, I chose the indexes and lowercase-email approach
+Repository interface + Mongo/in-memory implementations| My design, AI helped with implementation
+Service layer and domain rules| Mine. This is where the main behaviour lives
+Zod schemas| AI-generated from the validation rules I specified
+Controllers, routes, middleware| AI-generated, reviewed and modified
+Test suite| AI helped with the first pass; I specified and added important edge cases
+React components and Tailwind theming| AI-generated in parts; layout, interaction model and visual decisions are mine
+TanStack Query hooks and optimistic updates| AI-assisted from the rollback behaviour I specified
+README, AGENT.md and commit messages| Written and reviewed by me
+Deployment| Mine. Hosting choice, environment variables and serverless adaptation
 
-- `server/src/config/env.ts`, `logger.ts`, ESLint/tsconfig/Vitest configs
-- `server/src/modules/leads/lead.schema.ts` (Zod)
-- `server/src/modules/leads/lead.repository.memory.ts`
-- `server/src/shared/middleware/*`
-- Most `web/src/components/ui/*` primitives
-- The first pass of every test file
-- SVG icon paths (all inline, no icon dependency)
+What was AI-generated vs hand-written
 
-**Mostly mine:**
+Mostly AI-assisted, then reviewed
 
-- `lead.types.ts` — the status union, the transition map, and the decision
-  that `WON` is terminal
-- `lead.service.ts` — duplicate handling, transition enforcement, the
-  short-circuit when a status is re-applied
-- `lead.repository.ts` — the interface, and the choice to have one at all
-- `app.ts` — dependency injection so tests can supply a fake repository and a
-  fake health probe
-- `api/index.ts` and the `globalThis` connection cache
-- The error taxonomy and the `{ data }` / `{ error: { code } }` envelope
-- Interaction design: status pill as the control, four distinct empty states,
-  one search box instead of three
-- `README.md`, `AGENT.md`, every commit message
+- "server/src/config/env.ts"
+- "logger.ts"
+- ESLint/tsconfig/Vitest configuration
+- "server/src/modules/leads/lead.schema.ts" (Zod)
+- "server/src/modules/leads/lead.repository.memory.ts"
+- Shared middleware
+- Some React UI primitives
+- First pass of several test files
+- Some SVG icon paths
+- Parts of the frontend data-fetching layer
 
-**Neither — mechanical:**
+Mostly mine
 
-- `package-lock.json`, `next-env.d.ts`
+- "lead.types.ts" — status union, transition map and the decision that "WON" is terminal
+- "lead.service.ts" — duplicate handling, transition enforcement and same-status short-circuit
+- "lead.repository.ts" — repository interface and the decision to have the abstraction
+- "app.ts" — dependency injection so tests can provide a fake repository and health probe
+- "api/index.ts" and the "globalThis" connection cache
+- Error taxonomy and "{ data }" / "{ error: { code } }" response envelope
+- Interaction design — status pill as the control, different empty states and a single search input
+- README and AGENT.md
+- Git commit messages
+- Deployment approach and environment configuration
 
-## Representative prompts
+Mechanical
 
-Paraphrased; the real ones were longer and referenced files directly.
+- "package-lock.json"
+- "next-env.d.ts"
 
-> Express + TypeScript API. Strict tsconfig, separate build config so tests
-> stay out of `dist`. Parse env with Zod at import time and throw on a bad
-> config rather than failing on the first request.
+Representative prompts
 
-> Here's my `LeadRepository` interface. Write an in-memory implementation with
-> identical semantics to the Mongo one — same filtering, sorting, pagination
-> and stats — so the route tests can use it instead of a database.
+These are representative prompts from the development process. Some prompts were shorter and some included the relevant file/code context. I normally first decided what I wanted and then used Claude for implementation, testing or review.
 
-> Write route tests with Supertest against the in-memory repo. Cover: partial
-> search on each of the three fields, pagination totals, a `422` that lists
-> allowed transitions, an empty result being `200` not `404`, and `/stats` not
-> being matched as `/:id`.
+1. Initial project review and architecture
 
-> Tailwind v4, so no `tailwind.config`. Define the palette as CSS custom
-> properties in oklch, declared twice for light and dark, mapped through
-> `@theme inline`. Dark mode by `data-theme`, applied by a blocking script in
-> `<head>` so there's no flash.
+«I have attached/provided the Lead Tracker assignment document. Please first understand the requirements properly and review the current project structure/code.
 
-> The status pill should be the control itself. Build its menu from the
-> client-side transition map so an illegal move is never offered. Optimistic
-> update with rollback from a snapshot on error.
+I want React + TypeScript frontend, Node/Express + TypeScript backend and MongoDB. Before making changes, check if the current architecture is good for the requirements. Focus on clean separation between routes/controllers/service/repository and keep it simple, not over engineered.
 
-Prompts that did **not** work well were the vague ones — "build a leads
-dashboard" produced something generic with a separate edit modal per row,
-which I threw away. The useful prompts all carried a constraint I'd already
-decided.
+Also identify important edge cases from the assignment which we should handle. Don't make big changes without explaining why.»
 
-## Where the AI was wrong
+2. Lead status and edge cases
 
-Worth recording, because it's the honest answer to how much of this is the
-model:
+«Review the current lead status implementation against the assignment and current code. I want status changes to follow a proper flow and invalid transitions should not be allowed.
 
-1. **A real bug in the modal.** The generated `Modal` had its focus-trap
-   `useEffect` depend on `onClose`. That prop's identity changes on every
-   render, so every keystroke tore the effect down and re-ran it, re-focusing
-   the first field. Typing in the Phone input jumped you back to Name after
-   one character. My own manual testing hadn't caught it — the dialog test
-   did, and only because it typed into more than one field. Fixed by holding
-   `onClose` in a ref so the effect depends only on `open`.
+Check edge cases like same status update, skipping a status, invalid status, WON being final, duplicate lead email and invalid lead id.
 
-2. **A hallucinated Mongoose option.** The seed script was written with
-   `LeadModel.insertMany(docs, { timestamps: false })`. That option isn't in
-   Mongoose 8's `InsertManyOptions`; `tsc` rejected it. Replaced with
-   per-document `save({ timestamps: false })`, which is real.
+Please suggest the smallest changes required and add/update tests for these cases. Don't change unrelated code.»
 
-3. **A `rootDir` that broke typecheck.** The generated tsconfig set
-   `rootDir: "src"` in the base config while also including `tests/` and
-   `vitest.config.ts`. `tsc` refused. Moved `rootDir`/`outDir` into the build
-   config only.
+3. API and test review
 
-4. **`api/` silently untypechecked.** After adding the serverless entry,
-   `tsc --noEmit` passed — because `api/**` wasn't in the tsconfig `include`.
-   It was passing vacuously. Added it.
+«Review the backend API and existing tests carefully. Find important cases which are missing for a real lead tracker.
 
-5. **Odd code that worked but read badly.** The first `env.ts` wrapped a
-   string literal in a helper function to satisfy a Zod enum. It compiled and
-   it was nonsense. Rewritten.
+Check search by name/email/phone, empty search result, pagination, invalid input, duplicate email, status transition errors, 404 cases and route conflicts like /stats and /:id.
 
-6. **Wrong hosting advice by default.** The first deployment plan was Render's
-   free tier. Render sleeps after 15 minutes idle and takes ~50s to wake,
-   which would mean a reviewer opening the link sees a spinner. I moved the
-   API to a Vercel function instead, which needed two changes the model didn't
-   volunteer: exporting the app rather than calling `listen()`, and caching
-   the Mongoose connection on `globalThis` so warm containers reuse the pool
-   instead of exhausting Atlas's connection cap.
+Add only meaningful tests. Keep the current architecture and test style. After changes make sure TypeScript and tests pass.»
 
-## Key engineering decisions
+4. Final review and improvements
 
-**Repository interface in front of Mongoose.** The reason is the test suite.
-The route tests run the real Express stack — real middleware, real error
-handler, real controllers — against an in-memory repository, so 65 API tests
-finish in ~2s with no database and no flakiness. Nothing else in the design
-buys as much.
+«Do a final review of the complete project using the original assignment requirements. Check frontend, backend, database usage, validation, error handling, TypeScript, tests and deployment related issues.
 
-**Status as a state machine, not a string.** One `Record<LeadStatus,
-LeadStatus[]>` in `lead.types.ts` drives the server's `422`, the client
-dropdown's options, and its own unit tests. Skipping stages is the most common
-real mistake in a pipeline UI and this makes it unrepresentable.
+I don't want a rewrite. Find bugs or important improvements which can affect evaluation or real usage. For each issue explain the reason and suggest a small fix. I will decide which changes to apply.»
 
-**Zod parsed in the controller, not in middleware.** Validation middleware
-means the handler still reads `req.body` as `any` and casts. Parsing at the
-top of the controller gives the inferred type directly — no cast, and the
-schema is the single source of both the check and the type.
+How I used the responses
 
-**Stable error codes.** The frontend branches on `error.code`, never on the
-message. That's what lets a `409` land as an inline message on the email field
-while a `500` becomes a toast.
+I did not directly accept generated changes. I checked the diff, understood the change, ran the relevant tests and manually tested the affected flow.
 
-**Errors thrown as domain types.** The service throws
-`InvalidStatusTransitionError`; one middleware turns it into HTTP. The service
-imports nothing from Express, which is what makes it unit-testable.
+For larger changes I preferred asking AI to review or suggest a change rather than allowing it to redesign the existing implementation.
 
-**Dependency injection in `createApp`.** It takes the repository and the
-health probe as arguments. That's the whole reason the health check can be
-tested in both its `200` and `503` states without touching a database.
+The final implementation therefore contains a mix of AI-assisted code and manually designed/modified code.
 
-**`_id` as a sort tiebreaker.** Sorting by a non-unique field like `status`
-gives Mongo no deterministic order, so rows can repeat or vanish across pages.
-Every sort appends `_id`.
+Where the AI was wrong
 
-**Email lowercased at the schema level.** Makes the unique index
-case-insensitive without a collation-aware index.
+The AI output was useful but not always correct. Some examples that I caught during development:
 
-**Validation duplicated deliberately.** Client-side rules are a copy of the
-server's. Both are tested against the same inputs so they can't drift silently.
+1. A real bug in the modal. The generated "Modal" had its focus-trap "useEffect" depend on "onClose". That prop's identity changes on every render, so every keystroke could cause the effect to run again and refocus the first field. This was caught during testing and fixed by keeping "onClose" in a ref so the effect does not rerun unnecessarily.
 
-**Vercel functions over a long-lived container**, covered above — chosen to
-avoid cold-start sleep on a free tier, accepting per-instance rate limiting
-and the connection-pooling care that serverless requires.
+2. A Mongoose option that was not valid. The seed script used "LeadModel.insertMany(docs, { timestamps: false })". TypeScript rejected the option for the installed Mongoose version. I changed the implementation to save documents individually with the supported option.
 
-## If I did it again
+3. A "rootDir" configuration problem. The generated TypeScript configuration had "rootDir: "src"" while also including tests and the Vitest configuration. TypeScript rejected this setup. I moved the build-specific settings into the build configuration.
 
-The in-memory repository was the highest-leverage thing I built, and I built
-it third. Earlier would have been better — every test after that point was
-cheap to write.
+4. "api/" was initially not included in typechecking. After adding the serverless entry point, "tsc --noEmit" was passing without actually checking the new "api/**" code. I found this by checking the TypeScript configuration and added the directory to the included files.
 
-I'd also stop asking for components before deciding the interaction. The
-generated dashboard I discarded was a fair response to a bad prompt. Once I
-specified "the status pill *is* the control, and it only offers legal moves",
-the output was close to what shipped.
+5. Some generated code was unnecessarily complicated. In one case the generated environment configuration used a helper around a simple string value only to satisfy a type. It worked but was not useful. I simplified it.
+
+6. Initial deployment suggestion was not suitable for the reviewer experience. The first suggestion was a traditional free backend hosting setup. I changed the approach to a Vercel function so the API would not depend on a sleeping free server. This also required exporting the Express app instead of calling "listen()" and caching the MongoDB connection so warm serverless instances can reuse the connection.
+
+These were good examples of why I used AI as an assistant and still relied on the compiler, tests, manual testing and my own review.
+
+Key engineering decisions
+
+Repository interface in front of Mongoose
+
+The repository abstraction makes the service independent from MongoDB and also makes the API tests much faster.
+
+The route tests can run the real Express stack with an in-memory repository instead of requiring a database for every test. This keeps the tests deterministic and avoids unnecessary database setup.
+
+Status as a state machine
+
+Lead status is represented as a defined set of allowed transitions rather than treating status as an arbitrary string.
+
+A transition map in "lead.types.ts" is used to determine which statuses can follow the current status. This is also used by the frontend so the UI does not offer transitions that the backend will reject.
+
+"WON" is treated as a terminal state.
+
+The backend remains the source of truth, so the frontend restriction is mainly for better UX and early prevention of invalid actions.
+
+Zod validation
+
+Request data is validated using Zod before it reaches the service layer.
+
+This keeps the validation rules explicit and gives the application typed data after parsing instead of relying on casts from "req.body".
+
+Stable error codes
+
+The API uses structured error codes instead of making the frontend depend on error message strings.
+
+For example, the frontend can handle a duplicate email differently from a generic server error without checking the exact message text.
+
+Domain errors
+
+Business rules such as invalid status transitions are handled in the service layer through domain-level errors.
+
+The service does not need to know about Express or HTTP response objects. The HTTP layer converts those errors into the appropriate response.
+
+Dependency injection
+
+"createApp" accepts dependencies such as the repository and health probe.
+
+This allows tests to provide in-memory implementations and also makes the application less tightly coupled to a particular database implementation.
+
+Deterministic sorting
+
+When sorting by a field that can contain duplicate values, "_id" is also used as a tiebreaker.
+
+This makes pagination more deterministic and reduces the chance of records moving between pages when multiple records have the same primary sort value.
+
+Email normalization
+
+Email addresses are normalized to lowercase before storage.
+
+This makes duplicate checking consistent for values such as:
+
+"Example@Email.com"
+
+and
+
+"example@email.com"
+
+and allows the unique constraint to behave consistently without relying on case-sensitive input.
+
+Client and server validation
+
+Some validation is intentionally present on both sides.
+
+Client validation gives immediate feedback to the user, while server validation remains authoritative because API requests cannot trust the client.
+
+The same important cases are covered by tests to reduce the chance of the two sides behaving differently.
+
+Serverless deployment
+
+The API is adapted to run as a serverless function rather than relying on a permanently running server.
+
+The Express app is exported instead of starting its own listener, and the MongoDB connection is cached so warm function instances can reuse the existing connection.
+
+This keeps the deployment simple while avoiding a separate always-running backend server for the assignment.
+
+If I did it again
+
+The in-memory repository was one of the highest-leverage decisions in the project. It made the API tests fast and allowed most backend behaviour to be tested without depending on a running database.
+
+I would probably introduce that boundary even earlier so that more tests could be written before connecting the application to MongoDB.
+
+I would also spend more time defining the interaction before asking AI to generate UI components. An earlier generated dashboard was too generic because the prompt did not specify the interaction clearly enough, so I discarded it.
+
+Once I decided that the status pill itself should be the control and should only show valid next states, the generated implementation was much closer to what I wanted.
+
+Overall, AI reduced the amount of boilerplate I had to write, but the architecture, domain rules, important edge cases, debugging and final decisions remained under my review.
